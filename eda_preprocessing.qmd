@@ -1,0 +1,312 @@
+---
+title: "ADS503 FINAL PROJECT"
+format: html
+editor: visual
+---
+
+## EXPLORATORY DATA ANALYSIS AND PREPROCESSING
+
+#### CDC Diabetes Health Indicators Dataset
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(caret)
+library(corrplot)
+
+set.seed(503)
+```
+
+##### *Data Import and Initial Inspection*
+
+```{r}
+diabetes <- read.csv("~/Desktop/ADS503-Proj/archive/diabetes_binary_health_indicators_BRFSS2015.csv")
+
+dim(diabetes)
+
+head(diabetes)
+```
+
+```{r}
+colnames(diabetes)
+```
+
+##### *Dataset Structure*
+
+```{r}
+str(diabetes)
+```
+
+*Note: all variables imported as num*
+
+##### *Missing Values Check*
+
+```{r}
+colSums(is.na(diabetes))
+```
+
+##### *Target Variable Distribution*
+
+```{r}
+table(diabetes$Diabetes_binary)
+
+prop.table(table(diabetes$Diabetes_binary))
+```
+
+0 missing values across all 22 variables
+
+##### *Summary Statistics*
+
+```{r}
+summary(diabetes)
+```
+
+##### *Graphical EDA*
+
+```{r}
+# BMI Distribution
+ggplot(diabetes, aes(x = BMI)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
+  labs(
+    title = "Distribution of BMI",
+    x = "BMI",
+    y = "Count"
+  )
+```
+
+```{r}
+# BMI by Diabetes Status
+ggplot(diabetes, aes(x = factor(Diabetes_binary), y = BMI)) +
+  geom_boxplot(fill = "steelblue") +
+  labs(
+    title = "BMI by Diabetes Status",
+    x = "Diabetes Status",
+    y = "BMI"
+  )
+```
+
+*Note: 0 indicates no diabetes, while 1 indicates prediabetes or diabetes.*
+
+```{r}
+# High Blood Pressure and Diabetes Status
+ggplot(diabetes, aes(x = factor(HighBP), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by High Blood Pressure",
+    x = "High Blood Pressure",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: For HighBP, 0 indicates no high blood pressure and 1 indicates high blood pressure. For Diabetes Status, 0 indicates no diabetes and 1 indicates prediabetes or diabetes.*
+
+```{r}
+#General Health vs Diabetes
+ggplot(diabetes, aes(x = factor(GenHlth), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by General Health",
+    x = "General Health Rating",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: General Health is measured on a scale from 1 (excellent) to 5 (poor).*
+
+```{r}
+#Age vs Diabetes status
+ggplot(diabetes, aes(x = factor(Age), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by Age Group",
+    x = "Age Group",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: Age is grouped into categorical age ranges provided within the BRFSS dataset as follows:*
+
+1 = 18–24, \
+2 = 25–29, \
+3 = 30–34, \
+4 = 35–39, \
+5 = 40–44, \
+6 = 45–49, \
+7 = 50–54, \
+8 = 55–59, \
+9 = 60–64, \
+10 = 65–69, \
+11 = 70–74, \
+12 = 75–79, \
+13 = 80 or older.
+
+```{r}
+ggplot(diabetes, aes(x = factor(PhysActivity), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by Physical Activity",
+    x = "Physical Activity",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: For Physical Activity, 0 indicates no physical activity in the past 30 days and 1 indicates participation in physical activity.*
+
+```{r}
+ggplot(diabetes, aes(x = factor(Income), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by Income Level",
+    x = "Income Level",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+##### *Correlation Analysis*
+
+```{r}
+cor_matrix <- cor(diabetes)
+
+corrplot(
+  cor_matrix,
+  method = "color",
+  type = "upper",
+  diag = FALSE,
+  tl.col = "black",
+  tl.cex = 0.6,
+  tl.srt = 45
+)
+```
+
+```{r}
+target_correlations <- cor_matrix[, "Diabetes_binary"]
+
+sort(target_correlations, decreasing = TRUE)
+```
+
+##### *Near-zero Variance*
+
+```{r}
+nzv <- nearZeroVar(diabetes, saveMetrics = TRUE)
+
+nzv
+```
+
+##### *Outlier Investigation*
+
+```{r}
+boxplot(
+  diabetes$BMI,
+  main = "BMI Boxplot",
+  ylab = "BMI",
+  col = "steelblue"
+)
+```
+
+```{r}
+boxplot(
+  diabetes$PhysHlth,
+  main = "Physical Health Boxplot",
+  ylab = "Days Physical Health Not Good",
+  col = "steelblue"
+)
+```
+
+```{r}
+boxplot(
+  diabetes$MentHlth,
+  main = "Mental Health Boxplot",
+  ylab = "Days Mental Health Not Good",
+  col = "steelblue"
+)
+```
+
+##### *Modeling Dataset Preparation*
+
+```{r}
+diabetes_factors <- diabetes
+
+binary_vars <- c(
+  "Diabetes_binary",
+  "HighBP",
+  "HighChol",
+  "CholCheck",
+  "Smoker",
+  "Stroke",
+  "HeartDiseaseorAttack",
+  "PhysActivity",
+  "Fruits",
+  "Veggies",
+  "HvyAlcoholConsump",
+  "AnyHealthcare",
+  "NoDocbcCost",
+  "DiffWalk",
+  "Sex"
+)
+
+diabetes_factors[binary_vars] <- lapply(diabetes_factors[binary_vars], factor)
+
+str(diabetes_factors)
+```
+
+##### *Preprocessing Decision Summary*
+
+```         
+Overall, the dataset was very clean and well-structured to begin with, so only minimal preprocessing was needed before model development. No missing values were identified, and no variables were removed from the dataset.
+
+Several variables, including `GenHlth`, `HighBP`, `BMI`, `Age`, and `DiffWalk`, showed a meaningful relationship with diabetes outcomes during EDA and may become important predictors during modeling. While a few variables were identified as near-zero variance predictors, they were retained because they may still provide useful clinical information.
+
+Outlier investigation showed several right-skewed health-related variables and high-end BMI values, but these observations appeared realistic for a healthcare population and were therefore retained.
+
+Finally, a secondary model ready dataset (`diabetes_factors`) was created where binary survey variables were converted from numeric values to factor data types prior to model development.
+```
+
+## Data Splitting 
+
+```{r}
+train_index <- createDataPartition(
+  diabetes_factors$Diabetes_binary,
+  p = 0.70,
+  list = FALSE
+)
+
+train_data <- diabetes_factors[train_index, ]
+
+temp_data <- diabetes_factors[-train_index, ]
+
+validation_index <- createDataPartition(
+  temp_data$Diabetes_binary,
+  p = 0.50,
+  list = FALSE
+)
+
+validation_data <- temp_data[validation_index, ]
+
+test_data <- temp_data[-validation_index, ]
+```
+
+##### *Splitting Validation*
+
+```{r}
+dim(train_data)
+
+dim(validation_data)
+
+dim(test_data)
+```
+
+```{r}
+prop.table(table(train_data$Diabetes_binary))
+
+prop.table(table(validation_data$Diabetes_binary))
+
+prop.table(table(test_data$Diabetes_binary))
+```
