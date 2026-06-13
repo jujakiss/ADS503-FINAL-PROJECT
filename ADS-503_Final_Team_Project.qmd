@@ -1,0 +1,716 @@
+---
+title: "ADS-503 FINAL TEAM PROJECT"
+subtitle: "Predicting Diabetes Status Using Health and Lifestyle Indicators"
+author: "Team 8 - Julia Gonzalez, Sushma Kafle, Aishwarya Kuduvalli"
+format: html
+editor: visual
+---
+
+## EXPLORATORY DATA ANALYSIS AND PREPROCESSING
+
+#### CDC Diabetes Health Indicators Dataset
+
+```{r}
+#| label: setup
+#| message: false
+#| warning: false
+
+library(tidyverse)
+library(caret)
+library(corrplot)
+library(kernlab)
+library(pROC)
+library(earth)
+library(dplyr)
+library(gt)
+
+set.seed(503)
+```
+
+##### *Data Import and Initial Inspection*
+
+```{r}
+diabetes <- read.csv("diabetes_binary_health_indicators_BRFSS2015.csv")
+
+dim(diabetes)
+
+head(diabetes)
+```
+
+```{r}
+colnames(diabetes)
+```
+
+##### *Dataset Structure*
+
+```{r}
+str(diabetes)
+```
+
+*Note: all variables imported as num*
+
+##### *Missing Values Check*
+
+```{r}
+colSums(is.na(diabetes))
+```
+
+##### *Target Variable Distribution*
+
+```{r}
+table(diabetes$Diabetes_binary)
+
+prop.table(table(diabetes$Diabetes_binary))
+```
+
+0 missing values across all 22 variables
+
+##### *Summary Statistics*
+
+```{r}
+summary(diabetes)
+```
+
+##### *Graphical EDA*
+
+```{r}
+# BMI Distribution
+ggplot(diabetes, aes(x = BMI)) +
+  geom_histogram(binwidth = 2, fill = "steelblue", color = "white") +
+  labs(
+    title = "Distribution of BMI",
+    x = "BMI",
+    y = "Count"
+  )
+```
+
+```{r}
+# BMI by Diabetes Status
+ggplot(diabetes, aes(x = factor(Diabetes_binary), y = BMI)) +
+  geom_boxplot(fill = "steelblue") +
+  labs(
+    title = "BMI by Diabetes Status",
+    x = "Diabetes Status",
+    y = "BMI"
+  )
+```
+
+*Note: 0 indicates no diabetes, while 1 indicates prediabetes or diabetes.*
+
+```{r}
+# High Blood Pressure and Diabetes Status
+ggplot(diabetes, aes(x = factor(HighBP), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by High Blood Pressure",
+    x = "High Blood Pressure",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: For HighBP, 0 indicates no high blood pressure and 1 indicates high blood pressure. For Diabetes Status, 0 indicates no diabetes and 1 indicates prediabetes or diabetes.*
+
+```{r}
+#General Health vs Diabetes
+ggplot(diabetes, aes(x = factor(GenHlth), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by General Health",
+    x = "General Health Rating",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: General Health is measured on a scale from 1 (excellent) to 5 (poor).*
+
+```{r}
+#Age vs Diabetes status
+ggplot(diabetes, aes(x = factor(Age), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by Age Group",
+    x = "Age Group",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: Age is grouped into categorical age ranges provided within the BRFSS dataset as follows:*
+
+1 = 18–24,\
+2 = 25–29,\
+3 = 30–34,\
+4 = 35–39,\
+5 = 40–44,\
+6 = 45–49,\
+7 = 50–54,\
+8 = 55–59,\
+9 = 60–64,\
+10 = 65–69,\
+11 = 70–74,\
+12 = 75–79,\
+13 = 80 or older.
+
+```{r}
+ggplot(diabetes, aes(x = factor(PhysActivity), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by Physical Activity",
+    x = "Physical Activity",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+*Note: For Physical Activity, 0 indicates no physical activity in the past 30 days and 1 indicates participation in physical activity.*
+
+```{r}
+ggplot(diabetes, aes(x = factor(Income), fill = factor(Diabetes_binary))) +
+  geom_bar(position = "fill") +
+  labs(
+    title = "Diabetes Status by Income Level",
+    x = "Income Level",
+    y = "Proportion",
+    fill = "Diabetes Status"
+  )
+```
+
+##### *Correlation Analysis*
+
+```{r}
+cor_matrix <- cor(diabetes)
+
+corrplot(
+  cor_matrix,
+  method = "color",
+  type = "upper",
+  diag = FALSE,
+  tl.col = "black",
+  tl.cex = 0.6,
+  tl.srt = 45
+)
+```
+
+```{r}
+target_correlations <- cor_matrix[, "Diabetes_binary"]
+
+sort(target_correlations, decreasing = TRUE)
+```
+
+##### *Near-zero Variance*
+
+```{r}
+nzv <- nearZeroVar(diabetes, saveMetrics = TRUE)
+
+nzv
+```
+
+##### *Outlier Investigation*
+
+```{r}
+boxplot(
+  diabetes$BMI,
+  main = "BMI Boxplot",
+  ylab = "BMI",
+  col = "steelblue"
+)
+```
+
+```{r}
+boxplot(
+  diabetes$PhysHlth,
+  main = "Physical Health Boxplot",
+  ylab = "Days Physical Health Not Good",
+  col = "steelblue"
+)
+```
+
+```{r}
+boxplot(
+  diabetes$MentHlth,
+  main = "Mental Health Boxplot",
+  ylab = "Days Mental Health Not Good",
+  col = "steelblue"
+)
+```
+
+##### *Modeling Dataset Preparation*
+
+```{r}
+diabetes_factors <- diabetes
+
+binary_vars <- c(
+  "Diabetes_binary",
+  "HighBP",
+  "HighChol",
+  "CholCheck",
+  "Smoker",
+  "Stroke",
+  "HeartDiseaseorAttack",
+  "PhysActivity",
+  "Fruits",
+  "Veggies",
+  "HvyAlcoholConsump",
+  "AnyHealthcare",
+  "NoDocbcCost",
+  "DiffWalk",
+  "Sex"
+)
+
+diabetes_factors[binary_vars] <- lapply(diabetes_factors[binary_vars], factor)
+
+str(diabetes_factors)
+```
+
+##### *Pre-processing Decision Summary*
+
+Overall, the dataset was very clean and well-structured to begin with, so only minimal preprocessing was needed before model development. No missing values were identified, and no variables were removed from the dataset.
+
+Several variables, including `GenHlth`, `HighBP`, `BMI`, `Age`, and `DiffWalk`, showed a meaningful relationship with diabetes outcomes during EDA and may become important predictors during modeling. While a few variables were identified as near-zero variance predictors, they were retained because they may still provide useful clinical information.
+
+Outlier investigation showed several right-skewed health-related variables and high-end BMI values, but these observations appeared realistic for a healthcare population and were therefore retained.
+
+Finally, a secondary model ready dataset (`diabetes_factors`) was created where binary survey variables were converted from numeric values to factor data types prior to model development.
+
+## Data Splitting
+
+```{r}
+train_index <- createDataPartition(
+  diabetes_factors$Diabetes_binary,
+  p = 0.70,
+  list = FALSE
+)
+
+train_data <- diabetes_factors[train_index, ]
+
+temp_data <- diabetes_factors[-train_index, ]
+
+validation_index <- createDataPartition(
+  temp_data$Diabetes_binary,
+  p = 0.50,
+  list = FALSE
+)
+
+validation_data <- temp_data[validation_index, ]
+
+test_data <- temp_data[-validation_index, ]
+```
+
+##### *Splitting Validation*
+
+```{r}
+dim(train_data)
+
+dim(validation_data)
+
+dim(test_data)
+```
+
+```{r}
+prop.table(table(train_data$Diabetes_binary))
+
+prop.table(table(validation_data$Diabetes_binary))
+
+prop.table(table(test_data$Diabetes_binary))
+```
+
+## MODEL BUILDING STRATEGIES
+
+#### Linear Models
+
+##### *Predictors and Target Variables*
+
+```{r}
+# Training set
+xtrain <- train_data[,names(train_data) != "Diabetes_binary"]
+ytrain <- train_data$Diabetes_binary
+  
+# Validation set
+xvalidation <- validation_data[,names(validation_data) != "Diabetes_binary"]
+yvalidation <- validation_data$Diabetes_binary
+  
+# Test set
+xtest <- test_data[,names(test_data) != "Diabetes_binary"]
+ytest <- test_data$Diabetes_binary
+```
+
+##### *Cross Validation + ROC Preparation*
+
+```{r}
+# Renaming target variable / diabetes outcomes
+ytrain <- factor(ytrain, levels = c("1", "0"), labels = c("Yes", "No"))
+yvalidation <- factor(yvalidation, levels = c("1", "0"), labels = c("Yes", "No"))
+ytest <- factor(ytest, levels = c("1", "0"), labels = c("Yes", "No"))
+
+# Cross validation and ROC preparation
+ctrl <- trainControl(method = "cv", number = 5, summaryFunction = twoClassSummary, 
+                     classProbs = TRUE, savePredictions = TRUE)
+```
+
+*Notes:*
+
+*The target variable was renamed from 1s and 0s (indicating the presence or absence of diabetes/pre-diabetes ) to 'Yes' and 'No', to better suit `twoClassSummary` and ROC optimization.*
+
+*5-fold cross validation was used for training the models, as the training set is large. The validation and test sets were used for model comparison and evaluating the optimal model, respectively.*
+
+##### *Filtering Near-zero Variance Predictors*
+
+```{r}
+# Near-zero variance predictors using training set
+nzvtrain <- nearZeroVar(xtrain)
+
+# Filtering NZV from all sets
+xtrain <- xtrain[,-nzvtrain]
+xvalidation <- xvalidation[,-nzvtrain]
+xtest <- xtest[,-nzvtrain]
+```
+
+##### *Logistic Regression*
+
+```{r}
+# Building the logistic regression model
+set.seed(500)
+lrfit <- train (x = xtrain, y = ytrain, method = "glm", preProc = c("center", "scale"),
+                metric = "ROC", trControl = ctrl)
+lrfit
+
+# Confusion matrix
+lrcm <- confusionMatrix(lrfit, norm = "none")
+lrcm
+```
+
+Logistic regression:
+
+-   ROC = 0.819, reasonably high
+
+-   Sensitivity = 0.151, low
+
+-   Specificity = 0.978, high
+
+-   Accuracy = 0.863, high - but should proceed with caution as there is class imbalance
+
+##### *Penalized Logistic Regression*
+
+```{r}
+# Tuning values
+glmngrid <- expand.grid(alpha = c(0, .1, .2, .4, .6, .8, 1),
+                        lambda = seq(.01, .2, length = 40))
+
+# Building / tuning the penalized logistic regression model
+set.seed(500)
+glmnfit <- train(x = xtrain, y = ytrain, method = "glmnet", tuneGrid = glmngrid,
+                 preProc = c("center", "scale"), metric = "ROC", trControl = ctrl)
+glmnfit
+
+# Row number with highest ROC
+glmnbestrocrow <- which.max(glmnfit$results$ROC) 
+          
+# PLR results for row with the highest ROC
+glmnbest <- glmnfit$results[glmnbestrocrow,]
+round(glmnbest, 3)
+
+# Confusion matrix
+glmncm <- confusionMatrix(glmnfit, norm = "none")
+glmncm
+```
+
+```{r}
+# Plot - Hyperparameter tuning for PLR
+plot(glmnfit, main = "Hyperparameter Tuning for Penalized Logistic Regression")
+```
+
+Penalized logistic regression:
+
+-   ROC = 0.819, reasonably high
+
+-   Sensitivity = 0.131, low
+
+-   Specificity = 0.982, high
+
+-   Accuracy = 0.863, high - but should proceed with caution as there is class imbalance
+
+-   PLR has better performance at smaller lambda (regularization) values according to the plot
+
+#### Non-linear Models
+
+##### *Multivariate Adaptive Regression Spline (MARS)*
+
+```{r}
+# Number of non numeric variables
+isnotnumeric <- sum(!sapply(xtrain, is.numeric))
+
+# Dummy variables to use for SVM 
+dummyvariables <- dummyVars(~., data = xtrain)
+xtrainmars <- predict(dummyvariables, newdata = xtrain)
+xvalidationmars <-  predict(dummyvariables, newdata = xvalidation)
+xtestmars <- predict(dummyvariables, newdata = xtest)
+```
+
+*Note: SVM requires predictors to be numeric in data type, so dummy variables were created from the factor variables for the purpose of fitting the model.*
+
+```{r}
+# Building / tuning the MARS model 
+set.seed(500)
+marstune <- train(x = xtrainmars, y = ytrain, method = "earth",
+                  tuneGrid = expand.grid(degree = 1, nprune = 2:18), metric = "ROC",
+                  trControl = ctrl)
+marstune
+
+# Row number with highest ROC
+marsbestrocrow <- which.max(marstune$results$ROC)
+
+# MARS results for row with the highest ROC
+marsbest <- marstune$results[marsbestrocrow, ]
+round(marsbest, 3)
+
+# Confusion matrix
+marscm <- confusionMatrix(marstune, norm = "none")
+marscm
+```
+
+*Note:* *`nprune` was set to 2:18 because the training set is large, to reduce processing time.*
+
+```{r}
+# Plot - Hyperparameter tuning for MARS
+plot(marstune, main = "Hyperparameter Tuning for MARS")
+```
+
+MARS:
+
+-   ROC = 0.82, reasonably high
+
+-   Sensitivity = 0.168, low
+
+-   Specificity = 0.978, high
+
+-   Accuracy = 0.866, high - but should proceed with caution as there is class imbalance
+
+-   From the plot, ROC increases from approx. 0.72 to 0.81 at 5 terms, then plateaus at 0.82 for the remaining terms. Increasing `nprune` assists performance initially but after 10 terms there is minimal improvement.
+
+## VALIDATION & TESTING
+
+#### Validation
+
+##### *Validation Set Predictions*
+
+```{r}
+# Logistic regression - Validation set predictions / confusion matrix
+lrvalidationresults <- predict(lrfit, newdata = xvalidation)
+lrvalidationcm <- confusionMatrix(lrvalidationresults, yvalidation, positive = "Yes")
+lrvalidationcm
+
+# Penalized logistic regression - Validation set predictions / confusion matrix
+glmnvalidationresults <- predict(glmnfit, newdata = xvalidation)
+glmnvalidationcm <- confusionMatrix(glmnvalidationresults, yvalidation, positive = "Yes")
+glmnvalidationcm
+
+# MARS - Validation set predictions / confusion matrix
+marsvalidationresults <- predict(marstune, newdata = xvalidationmars)
+marsvalidationcm <- confusionMatrix(marsvalidationresults, yvalidation, positive = "Yes")
+marsvalidationcm
+```
+
+##### *Predicted Probabilities and ROC on Validation Set* 
+
+```{r}
+# Logistic regression - Predicted probabilities
+lrvalidationprob <- predict(lrfit, newdata = xvalidation, type = "prob")
+head(lrvalidationprob)
+
+# Penalized logistic regression - Predicted probabilities
+glmnvalidationprob <- predict(glmnfit, newdata = xvalidation, type = "prob")
+head(glmnvalidationprob)
+
+# MARS - Predicted probabilities
+marsvalidationprob <- predict(marstune, newdata = xvalidationmars, type = "prob")
+head(marsvalidationprob)
+
+# ROC
+lrvalidationroc <- roc(response = yvalidation, predictor = lrvalidationprob$Yes)
+glmnvalidationroc <- roc(response = yvalidation, predictor = glmnvalidationprob$Yes)
+marsvalidationroc <- roc(response = yvalidation, predictor = marsvalidationprob$Yes)
+```
+
+##### *Summary Table - Validation Set Model Performance*
+
+```{r}
+# Model names
+validationnames <- c("Logistic Regression", "Penalized Logistic Regression", "MARS")
+
+# ROC-AUC
+validationroc <- c(auc(lrvalidationroc), auc(glmnvalidationroc), auc(marsvalidationroc))
+
+# Accuracy
+validationaccuracy <- c(lrvalidationcm$overall["Accuracy"],
+                        glmnvalidationcm$overall["Accuracy"],
+                        marsvalidationcm$overall["Accuracy"])
+
+# Kappa
+validationkappa <- c(lrvalidationcm$overall["Kappa"],
+                        glmnvalidationcm$overall["Kappa"],
+                        marsvalidationcm$overall["Kappa"])
+
+# Sensitivity
+validationsensitivity <- c(lrvalidationcm$byClass["Sensitivity"],
+                        glmnvalidationcm$byClass["Sensitivity"],
+                        marsvalidationcm$byClass["Sensitivity"])
+
+# Specificity
+validationspecificity <- c(lrvalidationcm$byClass["Specificity"],
+                        glmnvalidationcm$byClass["Specificity"],
+                        marsvalidationcm$byClass["Specificity"])
+
+# Positive predictive value
+validationpospred <- c(lrvalidationcm$byClass["Pos Pred Value"],
+                        glmnvalidationcm$byClass["Pos Pred Value"],
+                        marsvalidationcm$byClass["Pos Pred Value"])
+
+# Negative predictive value
+validationnegpred <- c(lrvalidationcm$byClass["Neg Pred Value"],
+                        glmnvalidationcm$byClass["Neg Pred Value"],
+                        marsvalidationcm$byClass["Neg Pred Value"])
+
+# Balanced Accuracy
+validationbalancedaccuracy <- c(lrvalidationcm$byClass["Balanced Accuracy"],
+                        glmnvalidationcm$byClass["Balanced Accuracy"],
+                        marsvalidationcm$byClass["Balanced Accuracy"])
+
+# Summary table
+validationsummary <- tibble(Model = validationnames, ROC = validationroc, 
+                            Accuracy = validationaccuracy, Kappa = validationkappa,
+                            Sensitivity = validationsensitivity, 
+                            Specificity = validationspecificity, 
+                            Pos_Pred_Value = validationpospred, 
+                            Neg_Pred_Value = validationnegpred, 
+                            Balanced_Accuracy = validationbalancedaccuracy)
+
+
+validationsummary |> gt() |> fmt_number(columns = where(is.numeric), decimals = 3)
+```
+
+##### *ROC Curve Comparison Plot - Validation Set*
+
+```{r}
+# Logistic regression
+plot(lrvalidationroc, legacy.axes = TRUE,
+     main = "ROC Curve Comparison - Validation Set", col = "darkseagreen", 
+     xlim = c(0, 0.7), ylim = c(0.3, 1))
+
+# Penalized logistic regression
+plot(glmnvalidationroc, col = "coral3", add = TRUE) 
+
+# MARS
+plot(marsvalidationroc, col = "darkslategray4", add = TRUE)
+
+legend("bottomleft", col = c("darkseagreen", "coral3", "darkslategray4"), 
+       legend = c("Logistic Regression", "Penalized Logistic Regression","MARS"), 
+       lwd = c(2, 2, 2))
+```
+
+According to the summary table, model performance using the validation set indicates that MARS performed best compared to the remaining models (highest ROC, accuracy, kappa, sensitivity, positive predictive value, negative predictive value, and balanced accuracy) although the difference is marginal. This is especially evident in the ROC curve plot, where each curve overlaps closely.
+
+MARS did perform slightly worse than PLR in specificity. All models showed high specificity but low sensitivity. — TO REVISE, based on the performance of other models.
+
+MARS was selected as the optimal model, so final predictions and evaluation were completed only on MARS with the test set.
+
+#### Final Model and Testing
+
+##### *Final Model Information (MARS)*
+
+```{r}
+marstune$finalModel
+```
+
+##### *Final Model Coefficients (MARS)*
+
+```{r}
+marstune$finalModel$coefficients
+```
+
+##### *Final Model Variable Importance*
+
+```{r}
+varImp(marstune)
+```
+
+##### *Final Model - Test Set Predictions (MARS)*
+
+```{r}
+# Test set predictions
+marstestresults <- predict(marstune, newdata = xtestmars)
+head(marstestresults)
+
+# Confusion matrix
+marstestcm <- confusionMatrix(marstestresults, ytest, positive = "Yes")
+marstestcm
+```
+
+##### *Final Model Predicted Probabilities and ROC on Test Set (MARS)*
+
+```{r}
+# Predicted probabilities
+marstestprob <- predict(marstune, newdata = xtestmars, type = "prob")
+head(marstestprob)
+
+# ROC
+marstestroc <- roc(response = ytest, predictor = marstestprob$Yes)
+```
+
+##### *Summary Table - Validation Set Final Model Performance (MARS)* 
+
+```{r}
+# Model name
+testname <- c("MARS")
+
+# ROC-AUC
+testroc <- c(auc(marstestroc))
+
+# Accuracy
+testaccuracy <- c(marstestcm$overall["Accuracy"])
+
+# Kappa
+testkappa <- c(marstestcm$overall["Kappa"])
+
+# Sensitivity
+testsensitivity <- c(marstestcm$byClass["Sensitivity"])
+
+# Specificity
+testspecificity <- c(marstestcm$byClass["Specificity"])
+
+# Positive predictive value
+testpospred <- c( marstestcm$byClass["Pos Pred Value"])
+
+# Negative predictive value
+testnegpred <- c(marstestcm$byClass["Neg Pred Value"])
+
+# Balanced Accuracy
+testbalancedaccuracy <- c(marstestcm$byClass["Balanced Accuracy"])
+
+# Summary table
+testsummary <- tibble(Model = testname, ROC = testroc, 
+                            Accuracy = testaccuracy, Kappa = testkappa,
+                            Sensitivity = testsensitivity, 
+                            Specificity = testspecificity, 
+                            Pos_Pred_Value = testpospred, 
+                            Neg_Pred_Value = testnegpred, 
+                            Balanced_Accuracy = testbalancedaccuracy)
+
+
+testsummary |> gt() |> fmt_number(columns = where(is.numeric), decimals = 3)
+```
+
+##### *Final Model ROC Curve Plot - Test Set (MARS)*
+
+```{r}
+plot(marstestroc, legacy.axes = TRUE,
+     main = "Final Model ROC Curve - Test Set", col = "darkorange", 
+     xlim = c(0, 0.7), ylim = c(0.3, 1))
+```
+
+-   MARS was selected as the final model following its performance on the validation set compared with the other models.
+
+-   Then evaluated on test set, understand how it generalizes to unseen data
+
+-   The test results appear similar to the validation results, with high specificity but low sensitivity. - MORE ON THIS, REVISE for actual final model
