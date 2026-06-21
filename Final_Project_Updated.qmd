@@ -787,12 +787,12 @@ plot(rfvalidationroc, col = "pink", add = TRUE)
 #XGBoost
 plot(xgbvalidationroc, col = "purple", add = TRUE)
 
-legend("bottomleft", col = c("darkseagreen", "coral3", "darkslategray4"), 
-       legend = c("Logistic Regression", "Penalized Logistic Regression","MARS"), 
+legend("bottomleft", col = c("darkseagreen", "coral3", "darkslategray4", "yellow","pink","purple"), 
+       legend = c("Logistic Regression", "PLR","MARS","LDA","Random Forest","XGBoost"), 
        lwd = c(2, 2, 2))
 ```
 
-According to the summary table, model performance using the validation set indicates that XGBoost performed best compared to the remaining models (highest ROC, accuracy, sensitivity and positive predictive value) although the difference is marginal.This is especially evident in the ROC curve plot, where each curve overlaps closely. MARS is very close as well. 
+According to the summary table, model performance using the validation set indicates that XGBoost performed best compared to the remaining models (highest ROC, accuracy, sensitivity and positive predictive value) although the difference is marginal.This is especially evident in the ROC curve plot, where each curve overlaps closely. MARS is very close as well.
 
 XGBoost did perform slightly worse than PLR in specificity. All models showed high specificity but low sensitivity.
 
@@ -806,7 +806,7 @@ XGBoost was selected as the optimal model, so final predictions and evaluation w
 xgbfit$finalModel
 ```
 
-##### *Final Model Best Tuning Parameters (XGBoost)
+##### \*Final Model Best Tuning Parameters (XGBoost)
 
 ```{r}
 xgbfit$bestTune
@@ -842,7 +842,7 @@ xgbtestroc <- roc( response = ytest,
   predictor = xgbtestprob$Yes,levels = c("No", "Yes"), direction = "<")
 ```
 
-##### *Summary Table - Validation Set Final Model Performance (MARS)*
+##### *Summary Table - Test Set Final Model Performance (XGBoost)*
 
 ```{r}
 # Model name
