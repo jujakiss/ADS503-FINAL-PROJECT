@@ -6,9 +6,13 @@ format: html
 editor: visual
 ---
 
+
+
 ## EXPLORATORY DATA ANALYSIS AND PREPROCESSING
 
 #### CDC Diabetes Health Indicators Dataset
+
+
 
 ```{r}
 #| label: setup
@@ -27,7 +31,11 @@ library(gt)
 set.seed(503)
 ```
 
+
+
 ##### *Data Import and Initial Inspection*
+
+
 
 ```{r}
 diabetes <- read.csv("diabetes_binary_health_indicators_BRFSS2015.csv")
@@ -41,21 +49,33 @@ head(diabetes)
 colnames(diabetes)
 ```
 
+
+
 ##### *Dataset Structure*
+
+
 
 ```{r}
 str(diabetes)
 ```
 
+
+
 *Note: all variables imported as num*
 
 ##### *Missing Values Check*
+
+
 
 ```{r}
 colSums(is.na(diabetes))
 ```
 
+
+
 ##### *Target Variable Distribution*
+
+
 
 ```{r}
 table(diabetes$Diabetes_binary)
@@ -63,15 +83,23 @@ table(diabetes$Diabetes_binary)
 prop.table(table(diabetes$Diabetes_binary))
 ```
 
+
+
 0 missing values across all 22 variables
 
 ##### *Summary Statistics*
+
+
 
 ```{r}
 summary(diabetes)
 ```
 
+
+
 ##### *Graphical EDA*
+
+
 
 ```{r}
 # BMI Distribution
@@ -95,7 +123,11 @@ ggplot(diabetes, aes(x = factor(Diabetes_binary), y = BMI)) +
   )
 ```
 
+
+
 *Note: 0 indicates no diabetes, while 1 indicates prediabetes or diabetes.*
+
+
 
 ```{r}
 # High Blood Pressure and Diabetes Status
@@ -109,7 +141,11 @@ ggplot(diabetes, aes(x = factor(HighBP), fill = factor(Diabetes_binary))) +
   )
 ```
 
+
+
 *Note: For HighBP, 0 indicates no high blood pressure and 1 indicates high blood pressure. For Diabetes Status, 0 indicates no diabetes and 1 indicates prediabetes or diabetes.*
+
+
 
 ```{r}
 #General Health vs Diabetes
@@ -123,7 +159,11 @@ ggplot(diabetes, aes(x = factor(GenHlth), fill = factor(Diabetes_binary))) +
   )
 ```
 
+
+
 *Note: General Health is measured on a scale from 1 (excellent) to 5 (poor).*
+
+
 
 ```{r}
 #Age vs Diabetes status
@@ -136,6 +176,8 @@ ggplot(diabetes, aes(x = factor(Age), fill = factor(Diabetes_binary))) +
     fill = "Diabetes Status"
   )
 ```
+
+
 
 *Note: Age is grouped into categorical age ranges provided within the BRFSS dataset as follows:*
 
@@ -153,6 +195,8 @@ ggplot(diabetes, aes(x = factor(Age), fill = factor(Diabetes_binary))) +
 12 = 75–79,\
 13 = 80 or older.
 
+
+
 ```{r}
 ggplot(diabetes, aes(x = factor(PhysActivity), fill = factor(Diabetes_binary))) +
   geom_bar(position = "fill") +
@@ -164,7 +208,11 @@ ggplot(diabetes, aes(x = factor(PhysActivity), fill = factor(Diabetes_binary))) 
   )
 ```
 
+
+
 *Note: For Physical Activity, 0 indicates no physical activity in the past 30 days and 1 indicates participation in physical activity.*
+
+
 
 ```{r}
 ggplot(diabetes, aes(x = factor(Income), fill = factor(Diabetes_binary))) +
@@ -177,7 +225,11 @@ ggplot(diabetes, aes(x = factor(Income), fill = factor(Diabetes_binary))) +
   )
 ```
 
+
+
 ##### *Correlation Analysis*
+
+
 
 ```{r}
 cor_matrix <- cor(diabetes)
@@ -199,7 +251,11 @@ target_correlations <- cor_matrix[, "Diabetes_binary"]
 sort(target_correlations, decreasing = TRUE)
 ```
 
+
+
 ##### *Near-zero Variance*
+
+
 
 ```{r}
 nzv <- nearZeroVar(diabetes, saveMetrics = TRUE)
@@ -207,7 +263,11 @@ nzv <- nearZeroVar(diabetes, saveMetrics = TRUE)
 nzv
 ```
 
+
+
 ##### *Outlier Investigation*
+
+
 
 ```{r}
 boxplot(
@@ -236,7 +296,11 @@ boxplot(
 )
 ```
 
+
+
 ##### *Modeling Dataset Preparation*
+
+
 
 ```{r}
 diabetes_factors <- diabetes
@@ -264,6 +328,8 @@ diabetes_factors[binary_vars] <- lapply(diabetes_factors[binary_vars], factor)
 str(diabetes_factors)
 ```
 
+
+
 ##### *Pre-processing Decision Summary*
 
 Overall, the dataset was very clean and well-structured to begin with, so only minimal preprocessing was needed before model development. No missing values were identified, and no variables were removed from the dataset.
@@ -275,6 +341,8 @@ Outlier investigation showed several right-skewed health-related variables and h
 Finally, a secondary model ready dataset (`diabetes_factors`) was created where binary survey variables were converted from numeric values to factor data types prior to model development.
 
 ## Data Splitting
+
+
 
 ```{r}
 train_index <- createDataPartition(
@@ -298,7 +366,11 @@ validation_data <- temp_data[validation_index, ]
 test_data <- temp_data[-validation_index, ]
 ```
 
+
+
 ##### *Splitting Validation*
+
+
 
 ```{r}
 dim(train_data)
@@ -316,11 +388,15 @@ prop.table(table(validation_data$Diabetes_binary))
 prop.table(table(test_data$Diabetes_binary))
 ```
 
+
+
 ## MODEL BUILDING STRATEGIES
 
 #### Linear Models
 
 ##### *Predictors and Target Variables*
+
+
 
 ```{r}
 # Training set
@@ -336,7 +412,11 @@ xtest <- test_data[,names(test_data) != "Diabetes_binary"]
 ytest <- test_data$Diabetes_binary
 ```
 
+
+
 ##### *Cross Validation + ROC Preparation*
+
+
 
 ```{r}
 # Renaming target variable / diabetes outcomes
@@ -350,6 +430,8 @@ ctrl <- trainControl(method = "cv", number = 5, summaryFunction = twoClassSummar
 
 ```
 
+
+
 *Notes:*
 
 *The target variable was renamed from 1s and 0s (indicating the presence or absence of diabetes/pre-diabetes ) to 'Yes' and 'No', to better suit `twoClassSummary` and ROC optimization.*
@@ -357,6 +439,8 @@ ctrl <- trainControl(method = "cv", number = 5, summaryFunction = twoClassSummar
 *5-fold cross validation was used for training the models, as the training set is large. The validation and test sets were used for model comparison and evaluating the optimal model, respectively.*
 
 ##### *Filtering Near-zero Variance Predictors*
+
+
 
 ```{r}
 # Near-zero variance predictors using training set
@@ -368,7 +452,11 @@ xvalidation <- xvalidation[,-nzvtrain]
 xtest <- xtest[,-nzvtrain]
 ```
 
+
+
 ##### *Logistic Regression*
+
+
 
 ```{r}
 # Building the logistic regression model
@@ -382,6 +470,8 @@ lrcm <- confusionMatrix(lrfit, norm = "none")
 lrcm
 ```
 
+
+
 Logistic regression:
 
 -   ROC = 0.819, reasonably high
@@ -393,6 +483,8 @@ Logistic regression:
 -   Accuracy = 0.863, high - but should proceed with caution as there is class imbalance
 
 ##### *Penalized Logistic Regression*
+
+
 
 ```{r}
 # Tuning values
@@ -422,6 +514,8 @@ glmncm
 plot(glmnfit, main = "Hyperparameter Tuning for Penalized Logistic Regression")
 ```
 
+
+
 Penalized logistic regression:
 
 -   ROC = 0.819, reasonably high
@@ -437,6 +531,8 @@ Penalized logistic regression:
 ##### ***Linear Discriminant Analysis (LDA)***
 
 Running below check to make sure all predictors in xtrain are numeric and ytrain is a factor.
+
+
 
 ```{r}
 str(xtrain)
@@ -471,6 +567,8 @@ ldafit
 confusionMatrix(ldafit, norm = "none")
 ```
 
+
+
 #### **Linear Discriminant Analysis (LDA)**
 
 -   ROC = 0.817, indicating good discrimination between diabetes and non-diabetes cases.
@@ -485,6 +583,8 @@ confusionMatrix(ldafit, norm = "none")
 
 ##### *Multivariate Adaptive Regression Spline (MARS)*
 
+
+
 ```{r}
 # Number of non numeric variables
 isnotnumeric <- sum(!sapply(xtrain, is.numeric))
@@ -496,7 +596,11 @@ xvalidationmars <-  predict(dummyvariables, newdata = xvalidation)
 xtestmars <- predict(dummyvariables, newdata = xtest)
 ```
 
+
+
 *Note: SVM requires predictors to be numeric in data type, so dummy variables were created from the factor variables for the purpose of fitting the model.*
+
+
 
 ```{r}
 # Building / tuning the MARS model 
@@ -518,12 +622,18 @@ marscm <- confusionMatrix(marstune, norm = "none")
 marscm
 ```
 
+
+
 *Note:* *`nprune` was set to 2:18 because the training set is large, to reduce processing time.*
+
+
 
 ```{r}
 # Plot - Hyperparameter tuning for MARS
 plot(marstune, main = "Hyperparameter Tuning for MARS")
 ```
+
+
 
 MARS:
 
@@ -538,6 +648,8 @@ MARS:
 -   From the plot, ROC increases from approx. 0.72 to 0.81 at 5 terms, then plateaus at 0.82 for the remaining terms. Increasing `nprune` assists performance initially but after 10 terms there is minimal improvement.
 
 **Random Forest :**
+
+
 
 ```{r}
 set.seed(500)
@@ -562,6 +674,8 @@ rfcm <- confusionMatrix(rffit, norm = "none")
 rfcm
 ```
 
+
+
 Random Forest tunned over two candidates mtry (4 and 8). The model with mtry = 4 achieved the higher ROC.
 
 **Random Forest:**
@@ -577,6 +691,8 @@ Random Forest tunned over two candidates mtry (4 and 8). The model with mtry = 4
 -   From the plot, ROC is higher when mtry =4 which indicates using 4 predictors at each split would produced the best model performance.
 
 **XGBoost**
+
+
 
 ```{r, warning=FALSE, message=FALSE}
 library(xgboost)
@@ -604,6 +720,8 @@ xgbfit <- train(x = xtrain_xgb,y = ytrain,method = "xgbTree",
 xgbfit
 ```
 
+
+
 **XGBoost:**
 
 ROC = 0.828, the highest among the tested parameter combinations.
@@ -617,6 +735,8 @@ Accuracy = 0.866, high, but should be interpreted with caution due to class imba
 The optimal XGBoost model used nrounds = 100, max_depth = 4, and eta = 0.1. Increasing tree depth and learning rate slightly improved ROC and sensitivity, resulting in the best overall performance.
 
 ##### *Validation Set Predictions*
+
+
 
 ```{r}
 # Logistic regression - Validation set predictions / confusion matrix
@@ -650,7 +770,11 @@ xgbvalidationcm <- confusionMatrix(xgbvalidationresults, yvalidation, positive =
 xgbvalidationcm
 ```
 
+
+
 ##### *Predicted Probabilities and ROC on Validation Set*
+
+
 
 ```{r}
 # Logistic regression - Predicted probabilities
@@ -686,7 +810,11 @@ rfvalidationroc <- roc(response = yvalidation, predictor = rfvalidationprob$Yes,
 xgbvalidationroc <- roc(response = yvalidation, predictor = xgbvalidationprob$Yes,levels = c("No", "Yes"), direction = "<")
 ```
 
+
+
 ##### *Summary Table - Validation Set Model Performance*
+
+
 
 ```{r}
 # Model names
@@ -764,7 +892,11 @@ validationsummary <- tibble(Model = validationnames, ROC = validationroc,
 validationsummary |> gt() |> fmt_number(columns = where(is.numeric), decimals = 3)
 ```
 
+
+
 ##### *ROC Curve Comparison Plot - Validation Set*
+
+
 
 ```{r}
 # Logistic regression
@@ -792,6 +924,8 @@ legend("bottomleft", col = c("darkseagreen", "coral3", "darkslategray4", "yellow
        lwd = c(2, 2, 2))
 ```
 
+
+
 According to the summary table, model performance using the validation set indicates that XGBoost performed best compared to the remaining models (highest ROC, accuracy, sensitivity and positive predictive value) although the difference is marginal.This is especially evident in the ROC curve plot, where each curve overlaps closely. MARS is very close as well.
 
 XGBoost did perform slightly worse than PLR in specificity. All models showed high specificity but low sensitivity.
@@ -802,23 +936,37 @@ XGBoost was selected as the optimal model, so final predictions and evaluation w
 
 ##### *Final Model Information (XGBoost)*
 
+
+
 ```{r}
 xgbfit$finalModel
 ```
 
+
+
 ##### \*Final Model Best Tuning Parameters (XGBoost)
+
+
 
 ```{r}
 xgbfit$bestTune
 ```
 
+
+
 ##### *Final Model Variable Importance*
+
+
 
 ```{r}
 varImp(xgbfit)
 ```
 
+
+
 ##### *Final Model - Test Set Predictions (XGBoost)*
+
+
 
 ```{r}
 # Predicted probabilities
@@ -830,7 +978,11 @@ xgbtestroc <- roc( response = ytest,
   predictor = xgbtestprob$Yes,levels = c("No", "Yes"), direction = "<")
 ```
 
+
+
 ##### *Final Model Predicted Probabilities and ROC on Test Set (XGBoost)*
+
+
 
 ```{r}
 # Predicted probabilities
@@ -842,7 +994,11 @@ xgbtestroc <- roc( response = ytest,
   predictor = xgbtestprob$Yes,levels = c("No", "Yes"), direction = "<")
 ```
 
+
+
 ##### *Summary Table - Test Set Final Model Performance (XGBoost)*
+
+
 
 ```{r}
 # Model name
@@ -885,7 +1041,11 @@ testsummary <- tibble(Model = testname, ROC = testroc,
 testsummary |> gt() |> fmt_number(columns = where(is.numeric), decimals = 3)
 ```
 
+
+
 ##### *Final Model ROC Curve Plot - Test Set (XGBoost)*
+
+
 
 ```{r}
 plot(xgbtestroc, legacy.axes = TRUE,
@@ -893,8 +1053,11 @@ plot(xgbtestroc, legacy.axes = TRUE,
      xlim = c(0, 0.7), ylim = c(0.3, 1))
 ```
 
+
+
 -   XGBoost was selected as the final model following its performance on the validation set compared with the other models.
 
 -   Then evaluated on test set, understand how it generalizes to unseen data
 
 -   The test results appear similar to the validation results, with high specificity but low sensitivity.
+
